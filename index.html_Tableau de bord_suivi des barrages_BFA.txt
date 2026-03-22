@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Tableau de bord de suivi des barrages du Burkina Faso - Données en temps réel">
+    <meta name="theme-color" content="#2563eb">
+    <title>Tableau de Bord - Barrages Burkina Faso</title>
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiQmFycmFnZXMgQnVya2luYSIsInNob3J0X25hbWUiOiJCYXJyYWdlcyIsInN0YXJ0X3VybCI6Ii4iLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsImJhY2tncm91bmRfY29sb3IiOiIjZmZmZmZmIiwidGhlbWVfY29sb3IiOiIjMjU2M2ViIn0=">
+    
+    <!-- Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+        
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+        }
+        
+        .card-hover {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        
+        .progress-ring {
+            transform: rotate(-90deg);
+        }
+        .progress-ring-circle {
+            transition: stroke-dashoffset 1s ease-in-out;
+        }
+        
+        @keyframes pulse-warning {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .animate-pulse-warning {
+            animation: pulse-warning 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+        .animate-float {
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        .gradient-text {
+            background: linear-gradient(135deg, #2563eb 0%, #06b6d4 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .water-fill {
+            background: linear-gradient(180deg, rgba(59, 130, 246, 0.2) 0%, rgba(6, 182, 212, 0.4) 100%);
+            transition: height 1s ease-in-out;
+        }
+        
+        /* Offline indicator */
+        .offline-banner {
+            transform: translateY(-100%);
+            transition: transform 0.3s ease;
+        }
+        .offline-banner.show {
+            transform: translateY(0);
+        }
+        
+        /* Print styles */
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            body { background: white; }
+        }
+        
+        /* Dark mode */
+        .dark body {
+            background: linear-gradient(to bottom right, #0f172a, #1e293b);
+            color: #e2e8f0;
+        }
+        .dark .bg-white { background-color: #1e293b !important; }
+        .dark .text-gray-900 { color: #e2e8f0 !important; }
+        .dark .text-gray-600 { color: #94a3b8 !important; }
+        .dark .text-gray-500 { color: #64748b !important; }
+        .dark .border-gray-100 { border-color: #334155 !important; }
+        .dark .bg-gray-50 { background-color: #0f172a !important; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen transition-colors duration-300">
+    
+    <!-- Offline Banner -->
+    <div id="offline-banner" class="offline-banner fixed top-0 left-0 right-0 bg-orange-500 text-white px-4 py-2 text-center z-50 no-print">
+        <i class="fas fa-wifi-slash mr-2"></i> Mode hors ligne - Données en cache
+    </div>
+
+    <!-- Install PWA Banner -->
+    <div id="pwa-banner" class="hidden fixed bottom-4 left-4 right-4 bg-blue-600 text-white px-6 py-4 rounded-2xl shadow-2xl z-50 no-print md:left-auto md:right-4 md:w-96">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <i class="fas fa-download text-2xl"></i>
+                <div>
+                    <p class="font-semibold">Installer l'application</p>
+                    <p class="text-sm text-blue-100">Accès rapide hors ligne</p>
+                </div>
+            </div>
+            <div class="flex space-x-2">
+                <button onclick="dismissPWA()" class="px-3 py-1 text-sm hover:bg-blue-700 rounded-lg">Plus tard</button>
+                <button onclick="installPWA()" class="px-4 py-1 bg-white text-blue-600 font-semibold rounded-lg hover:bg-blue-50">Installer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-40 border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div class="flex items-center justify-between flex-wrap gap-4">
+                <div class="flex items-center space-x-4">
+                    <div class="bg-gradient-to-br from-blue-600 to-cyan-500 p-3 rounded-xl shadow-lg animate-float">
+                        <i class="fas fa-water text-2xl text-white"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold gradient-text">Barrages Burkina Faso</h1>
+                        <p class="text-sm text-gray-500 flex items-center gap-2">
+                            <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                            Suivi en temps réel des 24 barrages stratégiques
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="flex items-center space-x-3 no-print">
+                    <!-- Dark Mode Toggle -->
+                    <button onclick="toggleDarkMode()" class="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors" title="Mode sombre">
+                        <i class="fas fa-moon text-gray-600" id="dark-mode-icon"></i>
+                    </button>
+                    
+                    <!-- Refresh -->
+                    <button onclick="refreshData()" class="p-2 rounded-lg bg-blue-100 hover:bg-blue-200 transition-colors" title="Rafraîchir">
+                        <i class="fas fa-sync-alt text-blue-600" id="refresh-icon"></i>
+                    </button>
+                    
+                    <!-- Export Excel -->
+                    <button onclick="exportToExcel()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 shadow-lg">
+                        <i class="fas fa-file-excel"></i>
+                        <span class="hidden sm:inline">Exporter Excel</span>
+                    </button>
+                    
+                    <!-- Print -->
+                    <button onclick="window.print()" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2 shadow-lg">
+                        <i class="fas fa-print"></i>
+                        <span class="hidden sm:inline">Imprimer</span>
+                    </button>
+                    
+                    <div class="text-right hidden md:block">
+                        <p class="text-sm text-gray-500" id="current-date">--</p>
+                        <p class="text-xs text-green-600 font-medium">
+                            <i class="fas fa-check-circle mr-1"></i>En direct
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- Charts Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 no-print">
+            <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <i class="fas fa-chart-pie text-blue-500"></i>
+                    Répartition par statut
+                </h3>
+                <canvas id="statusChart" height="200"></canvas>
+            </div>
+            
+            <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <i class="fas fa-chart-bar text-blue-500"></i>
+                    Taux de remplissage par région
+                </h3>
+                <canvas id="regionChart" height="200"></canvas>
+            </div>
+        </div>
+
+        <!-- Stats Overview -->
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+            <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 card-hover">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-medium text-gray-600 uppercase tracking-wider">Taux moyen</p>
+                        <p class="text-2xl font-bold text-blue-600" id="taux-moyen">--%</p>
+                    </div>
+                    <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                        <i class="fas fa-percentage text-blue-600"></i>
+                    </div>
+                </div>
+                <div class="mt-2 h-1 bg-gray-200 rounded-full overflow-hidden">
+                    <div id="avg-progress" class="h-full bg-blue-600 rounded-full transition-all duration-1000" style="width: 0%"></div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 card-hover">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-medium text-gray-600 uppercase tracking-wider">Total</p>
+                        <p class="text-2xl font-bold text-gray-900">24</p>
+                    </div>
+                    <div class="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                        <i class="fas fa-database text-gray-600"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 card-hover">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-medium text-gray-600 uppercase tracking-wider">Déversants</p>
+                        <p class="text-2xl font-bold text-cyan-600" id="count-deversant">--</p>
+                    </div>
+                    <div class="w-10 h-10 bg-cyan-100 rounded-full flex items-center justify-center">
+                        <i class="fas fa-water text-cyan-600"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 card-hover">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-medium text-gray-600 uppercase tracking-wider">Bon niveau</p>
+                        <p class="text-2xl font-bold text-green-600" id="count-bon">--</p>
+                    </div>
+                    <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                        <i class="fas fa-check-circle text-green-600"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 card-hover">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-medium text-gray-600 uppercase tracking-wider">Niveau faible</p>
+                        <p class="text-2xl font-bold text-orange-600" id="count-faible">--</p>
+                    </div>
+                    <div class="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
+                        <i class="fas fa-exclamation-triangle text-orange-600"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 card-hover">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-medium text-gray-600 uppercase tracking-wider">Critique</p>
+                        <p class="text-2xl font-bold text-red-600" id="count-tres-faible">--</p>
+                    </div>
+                    <div class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                        <i class="fas fa-radiation text-red-600"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Search and Filters -->
+        <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 mb-8 no-print">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                <h3 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <i class="fas fa-filter text-blue-500"></i>
+                    Filtres et recherche
+                </h3>
+                
+                <!-- Search -->
+                <div class="relative flex-1 max-w-md">
+                    <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                    <input type="text" id="search-input" placeholder="Rechercher un barrage..." 
+                           class="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                           oninput="searchBarrages(this.value)">
+                </div>
+            </div>
+            
+            <div class="flex flex-wrap gap-2">
+                <button onclick="filterBarrages('all')" class="filter-btn px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-md active" data-filter="all">
+                    Tous (24)
+                </button>
+                <button onclick="filterBarrages('deversant')" class="filter-btn px-4 py-2 bg-cyan-100 text-cyan-700 rounded-lg hover:bg-cyan-200 transition-all" data-filter="deversant">
+                    <i class="fas fa-water mr-1"></i>Déversants
+                </button>
+                <button onclick="filterBarrages('bon')" class="filter-btn px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-all" data-filter="bon">
+                    <i class="fas fa-check mr-1"></i>Bon niveau
+                </button>
+                <button onclick="filterBarrages('moyen')" class="filter-btn px-4 py-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-all" data-filter="moyen">
+                    <i class="fas fa-minus mr-1"></i>Moyen
+                </button>
+                <button onclick="filterBarrages('faible')" class="filter-btn px-4 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-all" data-filter="faible">
+                    <i class="fas fa-exclamation mr-1"></i>Faible
+                </button>
+                <button onclick="filterBarrages('tres-faible')" class="filter-btn px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-all" data-filter="tres-faible">
+                    <i class="fas fa-radiation mr-1"></i>Très faible
+                </button>
+            </div>
+            
+            <div class="mt-4 flex items-center justify-between text-sm text-gray-600">
+                <span><span id="count-display">24</span> barrage(s) trouvé(s)</span>
+                <div class="flex gap-2">
+                    <button onclick="sortBarrages('name')" class="hover:text-blue-600 flex items-center gap-1">
+                        <i class="fas fa-sort-alpha-down"></i> Nom
+                    </button>
+                    <button onclick="sortBarrages('taux')" class="hover:text-blue-600 flex items-center gap-1">
+                        <i class="fas fa-sort-amount-down"></i> Taux
+                    </button>
+                    <button onclick="sortBarrages('region')" class="hover:text-blue-600 flex items-center gap-1">
+                        <i class="fas fa-map-marker-alt"></i> Région
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Barrages Grid -->
+        <div id="barrages-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <!-- Cards will be inserted here by JavaScript -->
+        </div>
+
+        <!-- Empty State -->
+        <div id="empty-state" class="hidden text-center py-16">
+            <i class="fas fa-search text-6xl text-gray-300 mb-4"></i>
+            <p class="text-xl text-gray-500">Aucun barrage trouvé</p>
+            <button onclick="filterBarrages('all')" class="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                Voir tous les barrages
+            </button>
+        </div>
+
+        <!-- Detailed Modal -->
+        <div id="detail-modal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 no-print">
+            <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl transform transition-all scale-100">
+                <div class="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white rounded-t-2xl">
+                    <h2 id="modal-title" class="text-2xl font-bold text-gray-900">Détails du barrage</h2>
+                    <button onclick="closeModal()" class="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                        <i class="fas fa-times text-xl text-gray-600"></i>
+                    </button>
+                </div>
+                <div id="modal-content" class="p-6">
+                    <!-- Content inserted by JS -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-200 mt-12 py-8 no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+                <div class="text-center md:text-left">
+                    <p class="text-gray-600 font-semibold">Direction Générale des Ressources en Eau</p>
+                    <p class="text-sm text-gray-500">Ministère de l'Eau et de l'Assainissement - Burkina Faso</p>
+                </div>
+                <div class="flex gap-4 text-sm text-gray-500">
+                    <span><i class="fas fa-envelope mr-1"></i> contact@dgreb.bf</span>
+                    <span><i class="fas fa-phone mr-1"></i> +226 25 30 00 00</span>
+                </div>
+            </div>
+            <div class="mt-4 pt-4 border-t border-gray-100 text-center text-xs text-gray-400">
+                Données fournies à titre indicatif - Dernière mise à jour: <span id="footer-date">--</span>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Data
+        const barrages = [
+            { name: "Bagré", region: "Centre-Est", status: "Déversant", taux: 104.16, volume: 1700, hauteur: "235.12m", alert: true, description: "Plus grand barrage du Burkina Faso", capaciteMax: 1700, dateConstruction: "1994" },
+            { name: "Dourou", region: "Nord", status: "Déversant", taux: 100, volume: 15, hauteur: "21m", alert: false, capaciteMax: 15, dateConstruction: "1980" },
+            { name: "Goinré", region: "Nord", status: "Faible", taux: 37.5, volume: 28, hauteur: "5.8m", alert: false, capaciteMax: 75, dateConstruction: "1975" },
+            { name: "Guitti", region: "Nord", status: "Moyen", taux: 63.86, volume: 12, hauteur: "4.8m", alert: false, capaciteMax: 19, dateConstruction: "1982" },
+            { name: "Kompienga", region: "Est", status: "Bon", taux: 85.37, volume: 2050, hauteur: "178.53m", alert: false, description: "2ème plus grand réservoir", capaciteMax: 2400, dateConstruction: "1988" },
+            { name: "Lac Bam", region: "Centre-Nord", status: "Faible", taux: 31.61, volume: 35, hauteur: "4.2m", alert: false, capaciteMax: 111, dateConstruction: "Nat." },
+            { name: "Liptougou", region: "Sahel", status: "Moyen", taux: 58.4, volume: 18, hauteur: "7.2m", alert: false, capaciteMax: 31, dateConstruction: "1995" },
+            { name: "Lobi", region: "Cascades", status: "Faible", taux: 35.66, volume: 45, hauteur: "8.5m", alert: false, capaciteMax: 126, dateConstruction: "1978" },
+            { name: "Louda", region: "Centre-Nord", status: "Déversant", taux: 100, volume: 12, hauteur: "9m", alert: false, capaciteMax: 12, dateConstruction: "1985" },
+            { name: "Loumbila", region: "Plateau Central", status: "Déversant", taux: 100, volume: 35, hauteur: "696m", alert: false, capaciteMax: 35, dateConstruction: "1990" },
+            { name: "Moussodougou", region: "Cascades", status: "Bon", taux: 80.36, volume: 280, hauteur: "42.5m", alert: false, capaciteMax: 348, dateConstruction: "1993" },
+            { name: "Ouaga (2+3)", region: "Centre", status: "Déversant", taux: 100, volume: 18, hauteur: "48m", alert: false, capaciteMax: 18, dateConstruction: "2005" },
+            { name: "Ouahigouya", region: "Nord", status: "Très faible", taux: 8.51, volume: 15, hauteur: "1.8m", alert: true, capaciteMax: 176, dateConstruction: "1972" },
+            { name: "Samendéni", region: "Hauts-Bassins", status: "Déversant", taux: 100, volume: 105, hauteur: "0.48m", alert: false, capaciteMax: 105, dateConstruction: "2004" },
+            { name: "Séguénéga", region: "Nord", status: "Déversant", taux: 100, volume: 8, hauteur: "3m", alert: false, capaciteMax: 8, dateConstruction: "1983" },
+            { name: "Seytenga", region: "Sahel", status: "Bon", taux: 78.5, volume: 20, hauteur: "6.5m", alert: false, capaciteMax: 25, dateConstruction: "1998" },
+            { name: "Tapoa", region: "Est", status: "Moyen", taux: 65.2, volume: 95, hauteur: "15.3m", alert: false, capaciteMax: 146, dateConstruction: "1989" },
+            { name: "Titao", region: "Nord", status: "Bon", taux: 91.1, volume: 18, hauteur: "8.2m", alert: false, capaciteMax: 20, dateConstruction: "1987" },
+            { name: "Tougou", region: "Sahel", status: "Faible", taux: 42.8, volume: 22, hauteur: "5.5m", alert: false, capaciteMax: 51, dateConstruction: "1996" },
+            { name: "Toussiana", region: "Hauts-Bassins", status: "Déversant", taux: 100, volume: 32, hauteur: "33m", alert: false, capaciteMax: 32, dateConstruction: "1991" },
+            { name: "Vy", region: "Boucle du Mouhoun", status: "Déversant", taux: 100, volume: 25, hauteur: "35m", alert: false, capaciteMax: 25, dateConstruction: "1984" },
+            { name: "Yakouta", region: "Sahel", status: "Moyen", taux: 55.3, volume: 14, hauteur: "4.8m", alert: false, capaciteMax: 25, dateConstruction: "2001" },
+            { name: "Yaran (Sourou)", region: "Boucle du Mouhoun", status: "Faible", taux: 42.5, volume: 22, hauteur: "6.2m", alert: false, capaciteMax: 52, dateConstruction: "1979" },
+            { name: "Ziga", region: "Plateau Central", status: "Déversant", taux: 100, volume: 44, hauteur: "967m", alert: false, capaciteMax: 44, dateConstruction: "1997" }
+        ];
+
+        let currentFilter = 'all';
+        let currentSort = { field: 'name', asc: true };
+        let filteredBarrages = [...barrages];
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            updateDate();
+            updateStats();
+            renderBarrages();
+            initCharts();
+            checkOnlineStatus();
+            setupServiceWorker();
+            
+            // Check for PWA install
+            window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+                window.deferredPrompt = e;
+                setTimeout(() => {
+                    document.getElementById('pwa-banner').classList.remove('hidden');
+                }, 2000);
+            });
+        });
+
+        function updateDate() {
+            const now = new Date();
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const dateStr = now.toLocaleDateString('fr-FR', options);
+            document.getElementById('current-date').textContent = dateStr;
+            document.getElementById('footer-date').textContent = now.toLocaleDateString('fr-FR');
+        }
+
+        function getStatusColor(status) {
+            const colors = {
+                'Déversant': 'cyan',
+                'Bon': 'green',
+                'Moyen': 'yellow',
+                'Faible': 'orange',
+                'Très faible': 'red'
+            };
+            return colors[status] || 'gray';
+        }
+
+        function getStatusBg(status) {
+            const bgs = {
+                'Déversant': 'bg-cyan-500',
+                'Bon': 'bg-green-500',
+                'Moyen': 'bg-yellow-500',
+                'Faible': 'bg-orange-500',
+                'Très faible': 'bg-red-500'
+            };
+            return bgs[status] || 'bg-gray-500';
+        }
+
+        function updateStats() {
+            const totalTaux = barrages.reduce((sum, b) => sum + b.taux, 0);
+            const tauxMoyen = (totalTaux / barrages.length).toFixed(2);
+            
+            document.getElementById('taux-moyen').textContent = tauxMoyen + '%';
+            document.getElementById('avg-progress').style.width = Math.min(tauxMoyen, 100) + '%';
+            
+            const counts = { 'Déversant': 0, 'Bon': 0, 'Moyen': 0, 'Faible': 0, 'Très faible': 0 };
+            barrages.forEach(b => counts[b.status] = (counts[b.status] || 0) + 1);
+            
+            document.getElementById('count-deversant').textContent = counts['Déversant'];
+            document.getElementById('count-bon').textContent = counts['Bon'];
+            document.getElementById('count-faible').textContent = counts['Faible'];
+            document.getElementById('count-tres-faible').textContent = counts['Très faible'];
+        }
+
+        function createCard(barrage) {
+            const color = getStatusColor(barrage.status);
+            const bgColor = getStatusBg(barrage.status);
+            const circumference = 2 * Math.PI * 40;
+            const offset = circumference - (Math.min(barrage.taux, 100) / 100) * circumference;
+            
+            return `
+                <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 card-hover barrage-card cursor-pointer" 
+                     data-status="${barrage.status.toLowerCase().replace(' ', '-')}"
+                     onclick="openModal('${barrage.name}')">
+                    
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-900">${barrage.name}</h3>
+                            <p class="text-sm text-gray-500 flex items-center gap-1">
+                                <i class="fas fa-map-marker-alt text-xs"></i> ${barrage.region}
+                            </p>
+                        </div>
+                        <span class="px-3 py-1 rounded-full text-xs font-semibold text-white ${bgColor} shadow-md">
+                            ${barrage.status}
+                        </span>
+                    </div>
+                    
+                    <div class="flex items-center justify-center mb-4">
+                        <div class="relative w-24 h-24">
+                            <svg class="w-24 h-24 progress-ring">
+                                <circle cx="48" cy="48" r="40" stroke="#e5e7eb" stroke-width="8" fill="none"></circle>
+                                <circle cx="48" cy="48" r="40" stroke="currentColor" stroke-width="8" fill="none" 
+                                    class="progress-ring-circle text-${color}-500" 
+                                    stroke-dasharray="${circumference}" 
+                                    stroke-dashoffset="${offset}"
+                                    stroke-linecap="round"></circle>
+                            </svg>
+                            <div class="absolute inset-0 flex items-center justify-center">
+                                <span class="text-lg font-bold text-gray-900">${barrage.taux}%</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-2">
+                        ${barrage.alert ? `
+                            <div class="flex items-center space-x-2 text-orange-600 text-sm animate-pulse-warning bg-orange-50 p-2 rounded-lg">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <span class="font-medium">Alerte niveau critique</span>
+                            </div>
+                        ` : ''}
+                        
+                        ${barrage.description ? `
+                            <p class="text-xs text-blue-600 bg-blue-50 p-2 rounded-lg font-medium">
+                                <i class="fas fa-info-circle mr-1"></i>${barrage.description}
+                            </p>
+                        ` : ''}
+                        
+                        <div class="pt-3 border-t border-gray-100 grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                                <span class="text-gray-500 text-xs block">Volume actuel</span>
+                                <span class="font-semibold text-gray-900">${barrage.volume} Mm³</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500 text-xs block">Hauteur</span>
+                                <span class="font-semibold text-gray-900">${barrage.hauteur}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
+                            <div class="h-full ${bgColor} rounded-full transition-all duration-1000" style="width: ${Math.min(barrage.taux, 100)}%"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderBarrages() {
+            const grid = document.getElementById('barrages-grid');
+            const emptyState = document.getElementById('empty-state');
+            const countDisplay = document.getElementById('count-display');
+            
+            // Apply filter
+            if (currentFilter === 'all') {
+                filteredBarrages = [...barrages];
+            } else {
+                filteredBarrages = barrages.filter(b => 
+                    b.status.toLowerCase().replace(' ', '-') === currentFilter
+                );
+            }
+            
+            // Apply search
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+            if (searchTerm) {
+                filteredBarrages = filteredBarrages.filter(b => 
+                    b.name.toLowerCase().includes(searchTerm) || 
+                    b.region.toLowerCase().includes(searchTerm)
+                );
+            }
+            
+            // Apply sort
+            filteredBarrages.sort((a, b) => {
+                let valA = a[currentSort.field];
+                let valB = b[currentSort.field];
+                
+                if (typeof valA === 'string') valA = valA.toLowerCase();
+                if (typeof valB === 'string') valB = valB.toLowerCase();
+                
+                if (valA < valB) return currentSort.asc ? -1 : 1;
+                if (valA > valB) return currentSort.asc ? 1 : -1;
+                return 0;
+            });
+            
+            if (filteredBarrages.length === 0) {
+                grid.innerHTML = '';
+                emptyState.classList.remove('hidden');
+            } else {
+                emptyState.classList.add('hidden');
+                grid.innerHTML = filteredBarrages.map(createCard).join('');
+            }
+            
+            countDisplay.textContent = filteredBarrages.length;
+            
+            // Update active filter button
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                if (btn.dataset.filter === currentFilter) {
+                    btn.classList.add('ring-2', 'ring-offset-2', 'ring-blue-500');
+                } else {
+                    btn.classList.remove('ring-2', 'ring-offset-2', 'ring-blue-500');
+                }
+            });
+        }
+
+        function filterBarrages(filter) {
+            currentFilter = filter;
+            renderBarrages();
+        }
+
+        function searchBarrages(term) {
+            renderBarrages();
+        }
+
+        function sortBarrages(field) {
+            if (currentSort.field === field) {
+                currentSort.asc = !currentSort.asc;
+            } else {
+                currentSort.field = field;
+                currentSort.asc = true;
+            }
+            renderBarrages();
+        }
+
+        function openModal(barrageName) {
+            const barrage = barrages.find(b => b.name === barrageName);
+            if (!barrage) return;
+            
+            const color = getStatusColor(barrage.status);
+            
+            document.getElementById('modal-title').textContent = barrage.name;
+            document.getElementById('modal-content').innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-4">
+                        <div class="bg-${color}-50 p-4 rounded-xl border border-${color}-200">
+                            <p class="text-sm text-${color}-600 font-semibold mb-1">Statut actuel</p>
+                            <p class="text-2xl font-bold text-${color}-700">${barrage.status}</p>
+                            <div class="mt-2 h-3 bg-white rounded-full overflow-hidden">
+                                <div class="h-full bg-${color}-500 rounded-full" style="width: ${Math.min(barrage.taux, 100)}%"></div>
+                            </div>
+                            <p class="text-sm text-${color}-600 mt-1">${barrage.taux}% de remplissage</p>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-gray-50 p-3 rounded-lg">
+                                <p class="text-xs text-gray-500">Région</p>
+                                <p class="font-semibold text-gray-900">${barrage.region}</p>
+                            </div>
+                            <div class="bg-gray-50 p-3 rounded-lg">
+                                <p class="text-xs text-gray-500">Année construction</p>
+                                <p class="font-semibold text-gray-900">${barrage.dateConstruction}</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <div class="bg-blue-50 p-4 rounded-xl">
+                            <h4 class="font-semibold text-blue-900 mb-3">Caractéristiques techniques</h4>
+                            <div class="space-y-2 text-sm">
+                                <div class="flex justify-between">
+                                    <span class="text-blue-700">Volume actuel:</span>
+                                    <span class="font-semibold">${barrage.volume} Mm³</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-blue-700">Capacité max:</span>
+                                    <span class="font-semibold">${barrage.capaciteMax} Mm³</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-blue-700">Hauteur:</span>
+                                    <span class="font-semibold">${barrage.hauteur}</span>
+                                </div>
+                                <div class="flex justify-between border-t border-blue-200 pt-2 mt-2">
+                                    <span class="text-blue-700">Volume disponible:</span>
+                                    <span class="font-semibold">${(barrage.capaciteMax - barrage.volume).toFixed(1)} Mm³</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        ${barrage.description ? `
+                            <div class="bg-yellow-50 p-4 rounded-xl border border-yellow-200">
+                                <p class="text-sm text-yellow-800">
+                                    <i class="fas fa-info-circle mr-1"></i>
+                                    ${barrage.description}
+                                </p>
+                            </div>
+                        ` : ''}
+                        
+                        ${barrage.alert ? `
+                            <div class="bg-red-50 p-4 rounded-xl border border-red-200">
+                                <p class="text-sm text-red-800 font-semibold">
+                                    <i class="fas fa-exclamation-triangle mr-1"></i>
+                                    Alerte: Niveau critique nécessitant une attention particulière
+                                </p>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+                
+                <div class="mt-6 pt-6 border-t border-gray-200">
+                    <h4 class="font-semibold text-gray-900 mb-3">Évolution simulée (30 jours)</h4>
+                    <canvas id="evolutionChart" height="100"></canvas>
+                </div>
+            `;
+            
+            document.getElementById('detail-modal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+            
+            // Create evolution chart
+            setTimeout(() => {
+                const ctx = document.getElementById('evolutionChart').getContext('2d');
+                const days = Array.from({length: 30}, (_, i) => `J-${30-i}`);
+                const data = Array.from({length: 30}, () => barrage.taux + (Math.random() - 0.5) * 10);
+                
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: days,
+                        datasets: [{
+                            label: 'Taux de remplissage (%)',
+                            data: data,
+                            borderColor: `rgb(var(--color-${color}-500))`,
+                            backgroundColor: `rgba(var(--color-${color}-500), 0.1)`,
+                            fill: true,
+                            tension: 0.4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { beginAtZero: true, max: 110 }
+                        }
+                    }
+                });
+            }, 100);
+        }
+
+        function closeModal() {
+            document.getElementById('detail-modal').classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+
+        // Close modal on outside click
+        document.getElementById('detail-modal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) closeModal();
+        });
+
+        // Charts
+        function initCharts() {
+            // Status distribution pie chart
+            const statusCtx = document.getElementById('statusChart').getContext('2d');
+            const statusCounts = {};
+            barrages.forEach(b => statusCounts[b.status] = (statusCounts[b.status] || 0) + 1);
+            
+            new Chart(statusCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(statusCounts),
+                    datasets: [{
+                        data: Object.values(statusCounts),
+                        backgroundColor: [
+                            '#06b6d4', // cyan
+                            '#22c55e', // green
+                            '#eab308', // yellow
+                            '#f97316', // orange
+                            '#ef4444'  // red
+                        ],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+            
+            // Region bar chart
+            const regionCtx = document.getElementById('regionChart').getContext('2d');
+            const regionData = {};
+            barrages.forEach(b => {
+                if (!regionData[b.region]) regionData[b.region] = { total: 0, count: 0 };
+                regionData[b.region].total += b.taux;
+                regionData[b.region].count++;
+            });
+            
+            const regions = Object.keys(regionData);
+            const avgByRegion = regions.map(r => (regionData[r].total / regionData[r].count).toFixed(1));
+            
+            new Chart(regionCtx, {
+                type: 'bar',
+                data: {
+                    labels: regions,
+                    datasets: [{
+                        label: 'Taux moyen (%)',
+                        data: avgByRegion,
+                        backgroundColor: '#3b82f6',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, max: 100 }
+                    }
+                }
+            });
+        }
+
+        // Export to Excel
+        function exportToExcel() {
+            const data = barrages.map(b => ({
+                'Nom': b.name,
+                'Région': b.region,
+                'Statut': b.status,
+                'Taux de remplissage (%)': b.taux,
+                'Volume actuel (Mm³)': b.volume,
+                'Capacité max (Mm³)': b.capaciteMax,
+                'Hauteur': b.hauteur,
+                'Alerte': b.alert ? 'Oui' : 'Non',
+                'Description': b.description || ''
+            }));
+            
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Barrages");
+            
+            // Auto-width columns
+            const colWidths = Object.keys(data[0]).map(key => ({
+                wch: Math.max(key.length, ...data.map(d => String(d[key]).length)) + 2
+            }));
+            ws['!cols'] = colWidths;
+            
+            XLSX.writeFile(wb, `Barrages_Burkina_${new Date().toISOString().split('T')[0]}.xlsx`);
+            
+            // Show notification
+            showNotification('Export Excel réussi !', 'success');
+        }
+
+        // Dark mode
+        function toggleDarkMode() {
+            document.documentElement.classList.toggle('dark');
+            const icon = document.getElementById('dark-mode-icon');
+            if (document.documentElement.classList.contains('dark')) {
+                icon.classList.remove('fa-moon');
+                icon.classList.add('fa-sun');
+                localStorage.setItem('darkMode', 'true');
+            } else {
+                icon.classList.remove('fa-sun');
+                icon.classList.add('fa-moon');
+                localStorage.setItem('darkMode', 'false');
+            }
+        }
+
+        // Check saved dark mode
+        if (localStorage.getItem('darkMode') === 'true') {
+            toggleDarkMode();
+        }
+
+        // Refresh data
+        function refreshData() {
+            const icon = document.getElementById('refresh-icon');
+            icon.classList.add('fa-spin');
+            
+            setTimeout(() => {
+                icon.classList.remove('fa-spin');
+                updateDate();
+                renderBarrages();
+                showNotification('Données actualisées', 'success');
+            }, 1000);
+        }
+
+        // Online/Offline detection
+        function checkOnlineStatus() {
+            const banner = document.getElementById('offline-banner');
+            
+            function updateOnlineStatus() {
+                if (navigator.onLine) {
+                    banner.classList.remove('show');
+                } else {
+                    banner.classList.add('show');
+                }
+            }
+            
+            window.addEventListener('online', updateOnlineStatus);
+            window.addEventListener('offline', updateOnlineStatus);
+            updateOnlineStatus();
+        }
+
+        // Service Worker for PWA
+        function setupServiceWorker() {
+            if ('serviceWorker' in navigator) {
+                const swCode = `
+                    self.addEventListener('install', e => {
+                        e.waitUntil(
+                            caches.open('barrages-v1').then(cache => {
+                                return cache.addAll(['/']);
+                            })
+                        );
+                    });
+                    
+                    self.addEventListener('fetch', e => {
+                        e.respondWith(
+                            caches.match(e.request).then(response => {
+                                return response || fetch(e.request);
+                            })
+                        );
+                    });
+                `;
+                
+                const blob = new Blob([swCode], { type: 'application/javascript' });
+                const swUrl = URL.createObjectURL(blob);
+                
+                navigator.serviceWorker.register(swUrl).catch(err => {
+                    console.log('Service Worker registration failed');
+                });
+            }
+        }
+
+        // PWA Install
+        function installPWA() {
+            if (window.deferredPrompt) {
+                window.deferredPrompt.prompt();
+                window.deferredPrompt.userChoice.then(choiceResult => {
+                    if (choiceResult.outcome === 'accepted') {
+                        document.getElementById('pwa-banner').classList.add('hidden');
+                    }
+                    window.deferredPrompt = null;
+                });
+            }
+        }
+
+        function dismissPWA() {
+            document.getElementById('pwa-banner').classList.add('hidden');
+            localStorage.setItem('pwaDismissed', Date.now());
+        }
+
+        // Notification system
+        function showNotification(message, type = 'info') {
+            const notif = document.createElement('div');
+            notif.className = `fixed top-20 right-4 px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300 translate-x-full ${
+                type === 'success' ? 'bg-green-500' : 'bg-blue-500'
+            } text-white flex items-center gap-2`;
+            notif.innerHTML = `
+                <i class="fas ${type === 'success' ? 'fa-check' : 'fa-info-circle'}"></i>
+                <span>${message}</span>
+            `;
+            
+            document.body.appendChild(notif);
+            
+            setTimeout(() => notif.classList.remove('translate-x-full'), 100);
+            setTimeout(() => {
+                notif.classList.add('translate-x-full');
+                setTimeout(() => notif.remove(), 300);
+            }, 3000);
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+            if (e.ctrlKey && e.key === 'e') {
+                e.preventDefault();
+                exportToExcel();
+            }
+            if (e.ctrlKey && e.key === 'r') {
+                e.preventDefault();
+                refreshData();
+            }
+        });
+    </script>
+</body>
+</html>
