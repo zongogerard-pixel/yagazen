@@ -1,0 +1,446 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Générateur de Tableau de Bord - Barrages Burkina Faso
+Ce script génère un fichier HTML complet et optimisé
+"""
+
+import json
+from datetime import datetime
+import os
+
+class BarragesDashboardGenerator:
+    def __init__(self):
+        self.barrages = [
+            {"name": "Bagré", "region": "Centre-Est", "status": "Déversant", "taux": 104.16, "volume": "1700 Mm³", "hauteur": "235.12m", "alert": True, "description": "Plus grand barrage du Burkina Faso"},
+            {"name": "Dourou", "region": "Nord", "status": "Déversant", "taux": 100, "volume": "15 Mm³", "hauteur": "21m", "alert": False},
+            {"name": "Goinré", "region": "Nord", "status": "Faible", "taux": 37.5, "volume": "28 Mm³", "hauteur": "5.8m", "alert": False},
+            {"name": "Guitti", "region": "Nord", "status": "Moyen", "taux": 63.86, "volume": "12 Mm³", "hauteur": "4.8m", "alert": False},
+            {"name": "Kompienga", "region": "Est", "status": "Bon", "taux": 85.37, "volume": "2050 Mm³", "hauteur": "178.53m", "alert": False, "description": "2ème plus grand réservoir"},
+            {"name": "Lac Bam", "region": "Centre-Nord", "status": "Faible", "taux": 31.61, "volume": "35 Mm³", "hauteur": "4.2m", "alert": False},
+            {"name": "Liptougou", "region": "Sahel", "status": "Moyen", "taux": 58.4, "volume": "18 Mm³", "hauteur": "7.2m", "alert": False},
+            {"name": "Lobi", "region": "Cascades", "status": "Faible", "taux": 35.66, "volume": "45 Mm³", "hauteur": "8.5m", "alert": False},
+            {"name": "Louda", "region": "Centre-Nord", "status": "Déversant", "taux": 100, "volume": "12 Mm³", "hauteur": "9m", "alert": False},
+            {"name": "Loumbila", "region": "Plateau Central", "status": "Déversant", "taux": 100, "volume": "35 Mm³", "hauteur": "696m", "alert": False},
+            {"name": "Moussodougou", "region": "Cascades", "status": "Bon", "taux": 80.36, "volume": "280 Mm³", "hauteur": "42.5m", "alert": False},
+            {"name": "Ouaga (2+3)", "region": "Centre", "status": "Déversant", "taux": 100, "volume": "18 Mm³", "hauteur": "48m", "alert": False},
+            {"name": "Ouahigouya", "region": "Nord", "status": "Très faible", "taux": 8.51, "volume": "15 Mm³", "hauteur": "1.8m", "alert": True},
+            {"name": "Samendéni", "region": "Hauts-Bassins", "status": "Déversant", "taux": 100, "volume": "105 Mm³", "hauteur": "0.48m", "alert": False},
+            {"name": "Séguénéga", "region": "Nord", "status": "Déversant", "taux": 100, "volume": "8 Mm³", "hauteur": "3m", "alert": False},
+            {"name": "Seytenga", "region": "Sahel", "status": "Bon", "taux": 78.5, "volume": "20 Mm³", "hauteur": "6.5m", "alert": False},
+            {"name": "Tapoa", "region": "Est", "status": "Moyen", "taux": 65.2, "volume": "95 Mm³", "hauteur": "15.3m", "alert": False},
+            {"name": "Titao", "region": "Nord", "status": "Bon", "taux": 91.1, "volume": "18 Mm³", "hauteur": "8.2m", "alert": False},
+            {"name": "Tougou", "region": "Sahel", "status": "Faible", "taux": 42.8, "volume": "22 Mm³", "hauteur": "5.5m", "alert": False},
+            {"name": "Toussiana", "region": "Hauts-Bassins", "status": "Déversant", "taux": 100, "volume": "32 Mm³", "hauteur": "33m", "alert": False},
+            {"name": "Vy", "region": "Boucle du Mouhoun", "status": "Déversant", "taux": 100, "volume": "25 Mm³", "hauteur": "35m", "alert": False},
+            {"name": "Yakouta", "region": "Sahel", "status": "Moyen", "taux": 55.3, "volume": "14 Mm³", "hauteur": "4.8m", "alert": False},
+            {"name": "Yaran (Sourou)", "region": "Boucle du Mouhoun", "status": "Faible", "taux": 42.5, "volume": "22 Mm³", "hauteur": "6.2m", "alert": False},
+            {"name": "Ziga", "region": "Plateau Central", "status": "Déversant", "taux": 100, "volume": "44 Mm³", "hauteur": "967m", "alert": False}
+        ]
+        
+        self.status_colors = {
+            'Déversant': ('cyan', 'bg-cyan-500'),
+            'Bon': ('green', 'bg-green-500'),
+            'Moyen': ('yellow', 'bg-yellow-500'),
+            'Faible': ('orange', 'bg-orange-500'),
+            'Très faible': ('red', 'bg-red-500')
+        }
+
+    def calculate_stats(self):
+        """Calcule les statistiques globales"""
+        total_taux = sum(b['taux'] for b in self.barrages)
+        taux_moyen = round(total_taux / len(self.barrages), 2)
+        
+        counts = {}
+        for b in self.barrages:
+            counts[b['status']] = counts.get(b['status'], 0) + 1
+            
+        return {
+            'taux_moyen': taux_moyen,
+            'total': len(self.barrages),
+            'counts': counts
+        }
+
+    def generate_barrages_js(self):
+        """Génère le code JavaScript pour les données des barrages"""
+        return f"const barrages = {json.dumps(self.barrages, ensure_ascii=False, indent=4)};"
+
+    def generate_html(self):
+        """Génère le HTML complet"""
+        stats = self.calculate_stats()
+        barrages_js = self.generate_barrages_js()
+        
+        html = f'''<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tableau de Bord - Barrages Burkina Faso</title>
+    <meta name="description" content="Suivi en temps réel des 24 barrages stratégiques du Burkina Faso">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {{ font-family: 'Inter', sans-serif; }}
+        .card-hover {{ transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }}
+        .card-hover:hover {{ transform: translateY(-8px); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); }}
+        .progress-ring {{ transform: rotate(-90deg); }}
+        .progress-ring-circle {{ transition: stroke-dashoffset 1.5s ease-out; }}
+        @keyframes pulse-warning {{ 0%, 100% {{ opacity: 1; }} 50% {{ opacity: 0.6; }} }}
+        .animate-pulse-warning {{ animation: pulse-warning 2s ease-in-out infinite; }}
+        .fade-in {{ animation: fadeIn 0.6s ease-out; }}
+        @keyframes fadeIn {{ from {{ opacity: 0; transform: translateY(20px); }} to {{ opacity: 1; transform: translateY(0); }} }}
+        .gradient-text {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }}
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-50 border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <div class="bg-gradient-to-br from-blue-600 to-indigo-700 p-3 rounded-2xl shadow-lg">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold gradient-text">Tableau de Bord - Barrages Burkina Faso</h1>
+                        <p class="text-sm text-gray-500">Suivi en temps réel des 24 barrages stratégiques</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="text-right">
+                        <p class="text-sm text-gray-500">Mis à jour: {datetime.now().strftime('%d %B %Y')}</p>
+                        <div class="flex items-center justify-end space-x-2 mt-1">
+                            <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                            <span class="text-xs text-green-600 font-semibold">En direct</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Stats Overview -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8 fade-in">
+            <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 hover:shadow-xl transition-shadow">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Taux moyen</p>
+                        <p class="text-3xl font-bold text-blue-600">{stats['taux_moyen']}%</p>
+                    </div>
+                    <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 hover:shadow-xl transition-shadow">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Total Barrages</p>
+                        <p class="text-3xl font-bold text-gray-900">{stats['total']}</p>
+                    </div>
+                    <div class="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                        <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 hover:shadow-xl transition-shadow">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Déversants</p>
+                        <p class="text-3xl font-bold text-cyan-600">{stats['counts'].get('Déversant', 0)}</p>
+                    </div>
+                    <div class="w-12 h-12 bg-cyan-100 rounded-full flex items-center justify-center">
+                        <svg class="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 hover:shadow-xl transition-shadow">
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="text-center p-2 bg-green-50 rounded-lg">
+                        <p class="text-xs font-medium text-gray-600">Bon</p>
+                        <p class="text-2xl font-bold text-green-600">{stats['counts'].get('Bon', 0)}</p>
+                    </div>
+                    <div class="text-center p-2 bg-yellow-50 rounded-lg">
+                        <p class="text-xs font-medium text-gray-600">Moyen</p>
+                        <p class="text-2xl font-bold text-yellow-600">{stats['counts'].get('Moyen', 0)}</p>
+                    </div>
+                    <div class="text-center p-2 bg-orange-50 rounded-lg">
+                        <p class="text-xs font-medium text-gray-600">Faible</p>
+                        <p class="text-2xl font-bold text-orange-600">{stats['counts'].get('Faible', 0)}</p>
+                    </div>
+                    <div class="text-center p-2 bg-red-50 rounded-lg">
+                        <p class="text-xs font-medium text-gray-600">Critique</p>
+                        <p class="text-2xl font-bold text-red-600">{stats['counts'].get('Très faible', 0)}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 hover:shadow-xl transition-shadow">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Régions</p>
+                        <p class="text-3xl font-bold text-purple-600">13</p>
+                    </div>
+                    <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 mb-8 fade-in">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900 mb-2 sm:mb-0">Filtres</h3>
+                <div class="flex items-center space-x-2">
+                    <button onclick="exportData()" class="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors flex items-center space-x-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                        </svg>
+                        <span>Exporter CSV</span>
+                    </button>
+                </div>
+            </div>
+            <div class="flex flex-wrap gap-3">
+                <button onclick="filterBarrages('all')" class="filter-btn px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-md hover:shadow-lg active:scale-95" data-filter="all">Tous ({stats['total']})</button>
+                <button onclick="filterBarrages('deversant')" class="filter-btn px-4 py-2 bg-cyan-100 text-cyan-700 rounded-lg hover:bg-cyan-200 transition-all shadow-sm hover:shadow-md active:scale-95" data-filter="deversant">Déversants ({stats['counts'].get('Déversant', 0)})</button>
+                <button onclick="filterBarrages('bon')" class="filter-btn px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-all shadow-sm hover:shadow-md active:scale-95" data-filter="bon">Bon ({stats['counts'].get('Bon', 0)})</button>
+                <button onclick="filterBarrages('moyen')" class="filter-btn px-4 py-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-all shadow-sm hover:shadow-md active:scale-95" data-filter="moyen">Moyen ({stats['counts'].get('Moyen', 0)})</button>
+                <button onclick="filterBarrages('faible')" class="filter-btn px-4 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-all shadow-sm hover:shadow-md active:scale-95" data-filter="faible">Faible ({stats['counts'].get('Faible', 0)})</button>
+                <button onclick="filterBarrages('tres-faible')" class="filter-btn px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-all shadow-sm hover:shadow-md active:scale-95" data-filter="tres-faible">Critique ({stats['counts'].get('Très faible', 0)})</button>
+            </div>
+            <p class="mt-4 text-sm text-gray-600"><span id="count-display">{stats['total']}</span> barrage(s) affiché(s)</p>
+        </div>
+
+        <!-- Barrages Grid -->
+        <div id="barrages-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <!-- Cards generated by JavaScript -->
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-200 mt-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <p class="text-sm text-gray-500">© 2026 - Direction Générale des Ressources en Eau du Burkina Faso</p>
+                <div class="flex space-x-4 mt-4 md:mt-0">
+                    <span class="text-sm text-gray-400">Dernière mise à jour: {datetime.now().strftime('%d/%m/%Y %H:%M')}</span>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        {barrages_js}
+        
+        const statusConfig = {{
+            'Déversant': {{ color: 'cyan', bg: 'bg-cyan-500', text: 'text-cyan-600', light: 'bg-cyan-50' }},
+            'Bon': {{ color: 'green', bg: 'bg-green-500', text: 'text-green-600', light: 'bg-green-50' }},
+            'Moyen': {{ color: 'yellow', bg: 'bg-yellow-500', text: 'text-yellow-600', light: 'bg-yellow-50' }},
+            'Faible': {{ color: 'orange', bg: 'bg-orange-500', text: 'text-orange-600', light: 'bg-orange-50' }},
+            'Très faible': {{ color: 'red', bg: 'bg-red-500', text: 'text-red-600', light: 'bg-red-50' }}
+        }};
+
+        function createCard(barrage, index) {{
+            const config = statusConfig[barrage.status];
+            const circumference = 2 * Math.PI * 40;
+            const offset = circumference - (Math.min(barrage.taux, 100) / 100) * circumference;
+            const delay = index * 50;
+            
+            return `
+                <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 card-hover barrage-card fade-in" 
+                     data-status="${{barrage.status.toLowerCase().replace(' ', '-')}}"
+                     style="animation-delay: ${{delay}}ms">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="flex-1">
+                            <h3 class="text-lg font-bold text-gray-900 leading-tight">${{barrage.name}}</h3>
+                            <p class="text-sm text-gray-500 mt-1">${{barrage.region}}</p>
+                        </div>
+                        <span class="px-3 py-1 rounded-full text-xs font-bold text-white ${{config.bg}} shadow-sm">
+                            ${{barrage.status}}
+                        </span>
+                    </div>
+                    
+                    <div class="flex items-center justify-center mb-5">
+                        <div class="relative w-28 h-28">
+                            <svg class="w-28 h-28 progress-ring">
+                                <circle cx="56" cy="56" r="48" stroke="#f3f4f6" stroke-width="10" fill="none"></circle>
+                                <circle cx="56" cy="56" r="48" stroke="currentColor" stroke-width="10" fill="none" 
+                                    class="progress-ring-circle ${{config.text}}" 
+                                    stroke-dasharray="${{circumference}}" 
+                                    stroke-dashoffset="${{circumference}}"
+                                    stroke-linecap="round"></circle>
+                            </svg>
+                            <div class="absolute inset-0 flex flex-col items-center justify-center">
+                                <span class="text-2xl font-bold text-gray-900">${{barrage.taux}}%</span>
+                                <span class="text-xs text-gray-400">rempli</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-3">
+                        ${{barrage.alert ? `
+                        <div class="flex items-center space-x-2 text-orange-600 text-sm font-medium animate-pulse-warning p-2 bg-orange-50 rounded-lg">
+                            <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            </svg>
+                            <span>${{barrage.taux > 100 ? '⚠️ Déversement en cours' : '⚠️ Niveau critique'}}</span>
+                        </div>
+                        ` : ''}}
+                        
+                        ${{barrage.description ? `<p class="text-xs text-gray-400 italic border-l-2 border-gray-200 pl-2">${{barrage.description}}</p>` : ''}}
+                        
+                        <div class="pt-3 border-t border-gray-100 space-y-2">
+                            <div class="flex justify-between items-center text-sm">
+                                <span class="text-gray-500 flex items-center space-x-1">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                                    </svg>
+                                    <span>Volume</span>
+                                </span>
+                                <span class="font-semibold text-gray-900">${{barrage.volume}}</span>
+                            </div>
+                            <div class="flex justify-between items-center text-sm">
+                                <span class="text-gray-500 flex items-center space-x-1">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
+                                    </svg>
+                                    <span>Hauteur</span>
+                                </span>
+                                <span class="font-semibold text-gray-900">${{barrage.hauteur}}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }}
+
+        function renderBarrages(filter = 'all') {{
+            const grid = document.getElementById('barrages-grid');
+            const countDisplay = document.getElementById('count-display');
+            
+            let filtered = barrages;
+            if (filter !== 'all') {{
+                filtered = barrages.filter(b => b.status.toLowerCase().replace(' ', '-') === filter);
+            }}
+            
+            grid.innerHTML = filtered.map((b, i) => createCard(b, i)).join('');
+            countDisplay.textContent = filtered.length;
+            
+            // Animate progress rings after render
+            setTimeout(() => {{
+                document.querySelectorAll('.progress-ring-circle').forEach((circle, i) => {{
+                    setTimeout(() => {{
+                        const targetOffset = circle.getAttribute('stroke-dashoffset');
+                        circle.style.strokeDashoffset = targetOffset;
+                    }}, i * 50);
+                }});
+            }}, 100);
+            
+            // Update active filter button
+            document.querySelectorAll('.filter-btn').forEach(btn => {{
+                if (btn.dataset.filter === filter) {{
+                    btn.classList.add('ring-2', 'ring-offset-2', 'ring-blue-500');
+                }} else {{
+                    btn.classList.remove('ring-2', 'ring-offset-2', 'ring-blue-500');
+                }}
+            }});
+        }}
+
+        function filterBarrages(status) {{
+            renderBarrages(status);
+        }}
+
+        function exportData() {{
+            const headers = ['Nom', 'Région', 'Statut', 'Taux (%)', 'Volume', 'Hauteur'];
+            const rows = barrages.map(b => [b.name, b.region, b.status, b.taux, b.volume, b.hauteur]);
+            const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\\n');
+            
+            const blob = new Blob([csv], {{ type: 'text/csv;charset=utf-8;' }});
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `barrages_burkina_${{new Date().toISOString().split('T')[0]}}.csv`;
+            link.click();
+        }}
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {{
+            renderBarrages('all');
+        }});
+
+        // Auto-refresh every 5 minutes (simulation)
+        setInterval(() => {{
+            console.log('Actualisation des données...');
+        }}, 300000);
+    </script>
+</body>
+</html>'''
+        return html
+
+    def save_to_file(self, filename='index.html', output_dir=None):
+        """Sauvegarde le HTML dans un fichier"""
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+            filepath = os.path.join(output_dir, filename)
+        else:
+            filepath = filename
+            
+        html_content = self.generate_html()
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+            
+        print(f"✅ Fichier généré avec succès : {os.path.abspath(filepath)}")
+        print(f"📊 Statistiques :")
+        stats = self.calculate_stats()
+        print(f"   - Taux moyen : {stats['taux_moyen']}%")
+        print(f"   - Total barrages : {stats['total']}")
+        for status, count in stats['counts'].items():
+            print(f"   - {status} : {count}")
+        return filepath
+
+def main():
+    """Fonction principale"""
+    print("=" * 60)
+    print("GÉNÉRATEUR DE TABLEAU DE BORD - BARRAGES BURKINA FASO")
+    print("=" * 60)
+    
+    generator = BarragesDashboardGenerator()
+    
+    # Options de sortie
+    output_dir = input("\nDossier de sortie (laisser vide pour le dossier courant) : ").strip()
+    if not output_dir:
+        output_dir = None
+        
+    filename = input("Nom du fichier (défaut: index.html) : ").strip()
+    if not filename:
+        filename = 'index.html'
+    if not filename.endswith('.html'):
+        filename += '.html'
+    
+    # Génération
+    print("\n⏳ Génération en cours...")
+    filepath = generator.save_to_file(filename, output_dir)
+    
+    print(f"\n🚀 Pour visualiser :")
+    print(f"   1. Ouvrez le fichier dans votre navigateur : file://{filepath}")
+    print(f"   2. Ou déployez sur GitHub Pages / Netlify")
+    print(f"\n💡 Conseil : Pour modifier les données, éditez la liste 'barrages' dans ce script")
+
+if __name__ == "__main__":
+    main()
